@@ -23,7 +23,7 @@ class TestFileListComparatorUsage(unittest.TestCase):
         from helpers import initLogs
         initLogs(u"test_FileListComparator.log", fileAppend=False, fileLevel=DEBUG, consoleLevel=INFO)
         self.comp = FileListComparator()
-        self.comp.compare(dbname1, dbname2)
+        self.comp.compare(dbname1, dbname2, True, True)
 
 
 class TestFileListCompare(unittest.TestCase):
@@ -36,9 +36,8 @@ class TestFileListCompare(unittest.TestCase):
         self.comp = FileListComparator()
         self.comp.trace = self.fake_trace
 
-    @unittest.skip("temp off")
     def test_compare(self):
-        self.comp.compare(dbname1, dbname2)
+        self.comp.compare(dbname1, dbname2, True, True)
         counter = Counter(self.events)
         self.assertEqual(counter['compare-start'], 1)
         self.assertEqual(counter['compare-done'], 1)
@@ -47,6 +46,7 @@ class TestFileListCompare(unittest.TestCase):
         self.assertEqual(counter['prepare-table-start'], 2)
         self.assertEqual(counter['prepare-table-done'], 2)
         self.assertEqual(counter['table1-unique'], 6)
+        self.assertEqual(counter['table2-unique'], 9)
 
 
 class TestFileListJoinSpeed(unittest.TestCase):
@@ -74,7 +74,6 @@ class TestFileListJoinSpeed(unittest.TestCase):
 
         return wrapper
 
-    @unittest.skip("temp off")
     def test_sql_join_speed_v1(self):
         @self.time_usage
         def exec_sql_join_v1(comp):  # join v1 - SLOW (9 minutes)
@@ -96,7 +95,6 @@ class TestFileListJoinSpeed(unittest.TestCase):
         self.assertEqual(counter['table1-unique'], 6)
         self.assertEqual(counter['elapsed'], 1)
 
-    @unittest.skip("temp off")
     def test_sql_join_speed_v2(self):
         @self.time_usage
         def exec_sql_join_v2(comp):  # join v2 - SLOW (9 minutes)
@@ -118,7 +116,6 @@ class TestFileListJoinSpeed(unittest.TestCase):
         self.assertEqual(counter['table1-unique'], 6)
         self.assertEqual(counter['elapsed'], 1)
 
-    @unittest.skip("temp off")
     def test_sql_join_speed_v3(self):
         @self.time_usage
         def exec_sql_join_v3(comp):  # join v3 - GOOD (1 minute)

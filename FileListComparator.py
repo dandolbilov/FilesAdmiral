@@ -25,6 +25,7 @@ class FileListComparator(object):
                                          Field('fname', type='string', length=256),
                                          Field('fsize', type='integer'),
                                          Field('md5_hash', type='string', length=32),
+                                         Field('wtime', type='text'),  # TODO(dan.dolbilov): switch to datetime
                                          Field('sz_md5_name', type='string')
                                          )
         else:
@@ -61,6 +62,7 @@ class FileListComparator(object):
         for x in files_with_md5(db1.Files.fileId > 0).select(limitby=(0, 150000)):  # TODO(dan.dolbilov): remove limit
             self.tempdb[tableName].insert(
                 fname=x.Files.fname, fsize=x.Files.fsize, md5_hash=x.FilesMD5.md5,
+                wtime=x.Files.wtime,  # TODO(dan.dolbilov): switch to datetime
                 sz_md5_name='%i_%s_%s' % (x.Files.fsize, x.FilesMD5.md5, x.Files.fname)
             )
         self.tempdb.commit()
@@ -69,17 +71,23 @@ class FileListComparator(object):
         n = self.tempdb(self.tempdb[tableName].id > 0).count()
         self.trace('prepare-table-done', 'table=[%s], count = %u' % (tableName, n))
 
-    def compare(self, dbname1, dbname2):
+    def compare(self, dbname1, dbname2, t1unique, t2unique):
         self.trace('compare-start', '')
         self.prepareTempDatabase('sqlite:memory:')
         self.prepareSnapshotTableFromImage2011('table1', dbname1)
         self.prepareSnapshotTableFromImage2011('table2', dbname2)
         tdb = self.tempdb
 
-        if 1:  # join v3 => GOOD (1 minute)
+        if t1unique:
             q2 = tdb()._select(tdb.table2.sz_md5_name)
             for x in tdb(~tdb.table1.sz_md5_name.belongs(q2)).select():
-                self.trace('table1-unique', 'fname = [%s], fsize = %i, md5 = %s' % (x.fname, x.fsize, x.md5_hash))
-            self.trace('lastsql', tdb._lastsql)
+                self.trace('table1-unique',
+                           'fname = [%s], fsize = %i, md5 = %s, wtime = [%s]' % (x.fname, x.fsize, x.md5_hash, x.wtime))
+
+        if t2unique:
+            q1 = tdb()._select(tdb.table1.sz_md5_name)
+            for x in tdb(~tdb.table2.sz_md5_name.belongs(q1)).select():
+                self.trace('table2-unique',
+                           'fname = [%s], fsize = %i, md5 = %s, wtime = [%s]' % (x.fname, x.fsize, x.md5_hash, x.wtime))
 
         self.trace('compare-done', '')
