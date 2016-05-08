@@ -12,8 +12,8 @@ import timeit
 from collections import Counter
 from FileListComparator import FileListComparator
 
-dbname1 = 'sqlite://D:/list-files/asus2data-2016.05.07.sqlite'
-dbname2 = 'sqlite://D:/list-files/asus2data-2016.05.08.sqlite'
+dbnames1 = ['D:/list-files/asus2data-2016.05.07.sqlite', 'D:/list-files/flash4gb-2016.05.07.sqlite']
+dbnames2 = ['D:/list-files/asus2data-2016.05.08.sqlite', 'D:/list-files/flash4gb-2016.05.08.sqlite']
 
 
 class TestFileListComparatorUsage(unittest.TestCase):
@@ -23,7 +23,7 @@ class TestFileListComparatorUsage(unittest.TestCase):
         from helpers import initLogs
         initLogs(u"test_FileListComparator.log", fileAppend=False, fileLevel=DEBUG, consoleLevel=INFO)
         self.comp = FileListComparator()
-        self.comp.compare(dbname1, dbname2, True, True)
+        self.comp.compare(dbnames1, dbnames2, True, True)
 
 
 class TestFileListCompare(unittest.TestCase):
@@ -37,14 +37,14 @@ class TestFileListCompare(unittest.TestCase):
         self.comp.trace = self.fake_trace
 
     def test_compare(self):
-        self.comp.compare(dbname1, dbname2, True, True)
+        self.comp.compare(dbnames1, dbnames2, True, True)
         counter = Counter(self.events)
         self.assertEqual(counter['compare-start'], 1)
         self.assertEqual(counter['compare-done'], 1)
         self.assertEqual(counter['prepare-temp-db-start'], 1)
         self.assertEqual(counter['prepare-temp-db-done'], 1)
-        self.assertEqual(counter['prepare-table-start'], 2)
-        self.assertEqual(counter['prepare-table-done'], 2)
+        self.assertEqual(counter['prepare-table-start'], 4)
+        self.assertEqual(counter['prepare-table-done'], 4)
         self.assertEqual(counter['table1-unique'], 6)
         self.assertEqual(counter['table2-unique'], 9)
 
@@ -61,8 +61,8 @@ class TestFileListJoinSpeed(unittest.TestCase):
         self.comp = FileListComparator()
         self.comp.trace = self.fake_trace
         self.comp.prepareTempDatabase('sqlite:memory:')
-        self.comp.prepareSnapshotTableFromImage2011('table1', dbname1)
-        self.comp.prepareSnapshotTableFromImage2011('table2', dbname2)
+        self.comp.prepareSnapshotTableFromImage2011('table1', 'sqlite://' + dbnames1[0])
+        self.comp.prepareSnapshotTableFromImage2011('table2', 'sqlite://' + dbnames2[0])
 
     def time_usage(self, func):
         def wrapper(*args, **kwargs):

@@ -34,7 +34,9 @@ class FileListComparator(object):
         return self.tempdb
 
     def prepareSnapshotTableFromImage2011(self, tableName, dbname):
-        self.trace('prepare-table-start', 'table=[%s], src=[%s]' % (tableName, dbname))
+        # count rows in dest temp table
+        n = self.tempdb(self.tempdb[tableName].id > 0).count()
+        self.trace('prepare-table-start', 'table=[%s], count1 = %u, src=[%s]' % (tableName, n, dbname))
 
         # connect to source database
         db1 = DAL(dbname, migrate_enabled=False)
@@ -55,11 +57,8 @@ class FileListComparator(object):
                          )
         files_with_md5 = db1(db1.Files.fileId == db1.FilesMD5.fileId)
 
-        # clear dest temp table
-        self.tempdb(self.tempdb[tableName].id > 0).delete()
-
         # copy data from source database to dest temp table
-        for x in files_with_md5(db1.Files.fileId > 0).select(limitby=(0, 150000)):  # TODO(dan.dolbilov): remove limit
+        for x in files_with_md5.select():
             self.tempdb[tableName].insert(
                 fname=x.Files.fname, fsize=x.Files.fsize, md5_hash=x.FilesMD5.md5,
                 wtime=x.Files.wtime,  # TODO(dan.dolbilov): switch to datetime
@@ -69,13 +68,20 @@ class FileListComparator(object):
 
         # count rows in dest temp table
         n = self.tempdb(self.tempdb[tableName].id > 0).count()
-        self.trace('prepare-table-done', 'table=[%s], count = %u' % (tableName, n))
+        self.trace('prepare-table-done', 'table=[%s], count2 = %u' % (tableName, n))
 
-    def compare(self, dbname1, dbname2, t1unique, t2unique):
+    def compare(self, dbnames1, dbnames2, t1unique, t2unique):
         self.trace('compare-start', '')
         self.prepareTempDatabase('sqlite:memory:')
-        self.prepareSnapshotTableFromImage2011('table1', dbname1)
-        self.prepareSnapshotTableFromImage2011('table2', dbname2)
+
+        if 0:  # clear dest temp tables
+            self.tempdb(self.tempdb['table1'].id > 0).delete()
+            self.tempdb(self.tempdb['table2'].id > 0).delete()
+
+        for dbname1 in dbnames1:
+            self.prepareSnapshotTableFromImage2011('table1', 'sqlite://' + dbname1)
+        for dbname2 in dbnames2:
+            self.prepareSnapshotTableFromImage2011('table2', 'sqlite://' + dbname2)
         tdb = self.tempdb
 
         if t1unique:
