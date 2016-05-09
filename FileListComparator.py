@@ -20,7 +20,7 @@ class FileListComparator(object):
         self.trace('prepare-temp-db-start', tdbname)
         if tdbname == 'sqlite:memory:':
             self.tempdb = DAL(tdbname)
-            for tableName in ['table1', 'table2']:
+            for tableName in ['table1', 'table2', 'table1_unique', 'table2_unique']:
                 self.tempdb.define_table(tableName,
                                          Field('fname', type='string', length=256),
                                          Field('fsize', type='integer'),
@@ -86,8 +86,8 @@ class FileListComparator(object):
         self.prepareTempDatabase('sqlite:memory:')
 
         if 0:  # clear dest temp tables
-            self.tempdb(self.tempdb['table1'].id > 0).delete()
-            self.tempdb(self.tempdb['table2'].id > 0).delete()
+            for tableName in ['table1', 'table2', 'table1_unique', 'table2_unique']:
+                self.tempdb(self.tempdb[tableName].id > 0).delete()
 
         for dbname1 in dbnames1:
             self.prepareSnapshotTableFromImage2011('table1', 'sqlite://' + dbname1)
@@ -104,6 +104,9 @@ class FileListComparator(object):
                                x.fname, x.fsize, x.md5_hash, x.wtime, x.fo_path, x.dk_name))
                 uniqCount += 1
                 uniqSize += x.fsize
+                self.tempdb.table1_unique.insert(fname=x.fname, fsize=x.fsize, md5_hash=x.md5_hash,
+                                                 wtime=x.wtime, fo_path=x.fo_path, dk_name=x.dk_name,
+                                                 sz_md5_name=x.sz_md5_name)
             self.trace('table1-uniq-counters', 'files = %i, bytes = %i' % (uniqCount, uniqSize))
 
         if t2unique:
@@ -115,6 +118,11 @@ class FileListComparator(object):
                                x.fname, x.fsize, x.md5_hash, x.wtime, x.fo_path, x.dk_name))
                 uniqCount += 1
                 uniqSize += x.fsize
+                self.tempdb.table2_unique.insert(fname=x.fname, fsize=x.fsize, md5_hash=x.md5_hash,
+                                                 wtime=x.wtime, fo_path=x.fo_path, dk_name=x.dk_name,
+                                                 sz_md5_name=x.sz_md5_name)
             self.trace('table2-uniq-counters', 'files = %i, bytes = %i' % (uniqCount, uniqSize))
 
-        self.trace('compare-done', '')
+        n1 = self.tempdb(self.tempdb['table1_unique'].id > 0).count()
+        n2 = self.tempdb(self.tempdb['table2_unique'].id > 0).count()
+        self.trace('compare-done', 'unique1 = %i, unique2 = %i' % (n1, n2))
