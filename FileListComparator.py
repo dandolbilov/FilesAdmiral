@@ -26,6 +26,8 @@ class FileListComparator(object):
                                          Field('fsize', type='integer'),
                                          Field('md5_hash', type='string', length=32),
                                          Field('wtime', type='text'),  # TODO(dan.dolbilov): switch to datetime
+                                         Field('fo_path', type='string', length=512),
+                                         Field('dk_name', type='string', length=256),
                                          Field('sz_md5_name', type='string')
                                          )
         else:
@@ -36,7 +38,9 @@ class FileListComparator(object):
     def prepareSnapshotTableFromImage2011(self, tableName, dbname):
         # count rows in dest temp table
         n = self.tempdb(self.tempdb[tableName].id > 0).count()
-        self.trace('prepare-table-start', 'table=[%s], count1 = %u, src=[%s]' % (tableName, n, dbname))
+        dk_name = dbname.replace('\\', '/').split('/')[-1].replace('.sqlite', '')
+        self.trace('prepare-table-start',
+                   'table=[%s], count1 = %u, src = [%s], dk_name = [%s]' % (tableName, n, dbname, dk_name))
 
         # connect to source database
         db1 = DAL(dbname, migrate_enabled=False)
@@ -55,13 +59,20 @@ class FileListComparator(object):
                          Field('calcTime', type='text'),
                          primarykey=['fileId']
                          )
-        files_with_md5 = db1(db1.Files.fileId == db1.FilesMD5.fileId)
+        db1.define_table('Folders',
+                         Field('foId', type='integer'),
+                         Field('path', type='text'),
+                         Field('scanTime', type='text'),
+                         primarykey=['foId']
+                         )
+        files_with_md5 = db1((db1.Files.fileId == db1.FilesMD5.fileId) & (db1.Files.foId == db1.Folders.foId))
 
         # copy data from source database to dest temp table
         for x in files_with_md5.select():
             self.tempdb[tableName].insert(
                 fname=x.Files.fname, fsize=x.Files.fsize, md5_hash=x.FilesMD5.md5,
                 wtime=x.Files.wtime,  # TODO(dan.dolbilov): switch to datetime
+                fo_path=x.Folders.path, dk_name=dk_name,
                 sz_md5_name='%i_%s_%s' % (x.Files.fsize, x.FilesMD5.md5, x.Files.fname)
             )
         self.tempdb.commit()
@@ -85,15 +96,25 @@ class FileListComparator(object):
         tdb = self.tempdb
 
         if t1unique:
+            uniqCount = uniqSize = 0
             q2 = tdb()._select(tdb.table2.sz_md5_name)
             for x in tdb(~tdb.table1.sz_md5_name.belongs(q2)).select():
                 self.trace('table1-unique',
-                           'fname = [%s], fsize = %i, md5 = %s, wtime = [%s]' % (x.fname, x.fsize, x.md5_hash, x.wtime))
+                           'fname = [%s], fsize = %i, md5 = %s, wtime = [%s], fo_path = [%s], dk_name = [%s]' % (
+                               x.fname, x.fsize, x.md5_hash, x.wtime, x.fo_path, x.dk_name))
+                uniqCount += 1
+                uniqSize += x.fsize
+            self.trace('table1-uniq-counters', 'files = %i, bytes = %i' % (uniqCount, uniqSize))
 
         if t2unique:
+            uniqCount = uniqSize = 0
             q1 = tdb()._select(tdb.table1.sz_md5_name)
             for x in tdb(~tdb.table2.sz_md5_name.belongs(q1)).select():
                 self.trace('table2-unique',
-                           'fname = [%s], fsize = %i, md5 = %s, wtime = [%s]' % (x.fname, x.fsize, x.md5_hash, x.wtime))
+                           'fname = [%s], fsize = %i, md5 = %s, wtime = [%s], fo_path = [%s], dk_name = [%s]' % (
+                               x.fname, x.fsize, x.md5_hash, x.wtime, x.fo_path, x.dk_name))
+                uniqCount += 1
+                uniqSize += x.fsize
+            self.trace('table2-uniq-counters', 'files = %i, bytes = %i' % (uniqCount, uniqSize))
 
         self.trace('compare-done', '')
